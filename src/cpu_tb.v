@@ -12,18 +12,16 @@ initial begin
 	im_array[1] = 8'h41; //add 01
 	im_array[2] = 8'h83; //sta 03
 	im_array[3] = 8'hC0; //jz 00
-	im_array[4] = 8'h22; //lda 02
-	im_array[5] = 8'h61; //dec 01
-	im_array[6] = 8'h83; //sta 03
-	im_array[7] = 8'hE0; //jn 00
-	im_array[8] = 8'hA0; //jmp 00
 	
-	//im_array[7] = 8'h41; //add 01
-	//im_array[8] = 8'h83; //sta 03
-	//im_array[8] = 8'h23; //lda 03
-	//im_array[9] = 8'h62; //dec 02
-	//im_array[10] = 8'h83; //sta 03
-	//im_array[11] = 8'hA3; //jmp 03
+	im_array[4] = 8'h21; //lda 01
+	im_array[5] = 8'h60; //dec 01
+	im_array[6] = 8'h81; //sta 03
+	im_array[7] = 8'h22; //lda 02
+	im_array[8] = 8'h61; //dec 01
+	im_array[9] = 8'h83; //sta 03
+	im_array[10] = 8'hE4; //jn 04
+	//im_array[11] = 8'h01F; //halt
+	im_array[11] = 8'hA0; //jmp 00
 end
 endmodule
 
@@ -45,8 +43,8 @@ begin
 if (wr) dm_array[abus] = in_dbus;
 end
 initial begin 
-  dm_array[0] = 8'h00;
-  dm_array[1] = 8'h06;
+  dm_array[0] = 8'h01;
+  dm_array[1] = 8'h07;
   dm_array[2] = 8'h05;
   dm_array[3] = 8'h00;
 end
@@ -64,7 +62,6 @@ module cpu_tb;
 	// Instantiate the Unit Under Test (UUT)
 	smpl_vhdl uut (
 		.clk(clk), 
-		.rst(rst),
 		.reset(reset), 
 		.rd_mem(rd_mem), 
 		.wr_mem(wr_mem), 
