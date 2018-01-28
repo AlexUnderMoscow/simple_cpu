@@ -232,7 +232,6 @@ port(
 	 halt: 			in std_logic;
 	 result_flag: 	in std_logic;
 	 clk: 			in std_logic;
-	 rst:				in std_logic;
 	 flags:			out std_logic_vector(2 downto 0);
 	opcode:			out std_logic_vector(2 downto 0);
 	operand:			out std_logic_vector(4 downto 0);
@@ -343,7 +342,7 @@ port map(
 zFlag: DF
 port map(
       clk => systemClk,
-      rst =>rst,
+      rst =>reset,
       pre =>odin(4),
       ce  =>result_flag,
       d =>result_zero,
@@ -353,7 +352,7 @@ port map(
 nFlag: DF
 port map(
       clk => systemClk,
-      rst =>rst,
+      rst =>reset,
       pre =>odin(4),
       ce  =>result_flag,
       d =>alu_out(7),
@@ -363,7 +362,7 @@ port map(
 hFlag: DF
 port map(
       clk => clk,
-      rst =>rst,
+      rst =>reset,
       pre =>odin(4),
       ce  =>halt,
       d =>odin(0),
@@ -566,7 +565,6 @@ use  IEEE.STD_LOGIC_UNSIGNED.all;
 entity smpl_vhdl is
 port(
 	 clk: 		in std_logic;
-	 rst:			in std_logic;
 	 reset: 		in std_logic;
 	 rd_mem: 	out std_logic;
 	 wr_mem: 	out std_logic;
@@ -593,7 +591,6 @@ component DataPath is
 	 result_flag: 	in std_logic;
 	 halt: 			in std_logic;
 	 clk: 			in std_logic;
-	 rst:				in std_logic;
 	 flags:			out std_logic_vector(2 downto 0);
 	opcode:			out std_logic_vector(2 downto 0);
 	operand:			out std_logic_vector(4 downto 0);
@@ -644,7 +641,6 @@ port map(
 	halt=>halt,
 	pc_src=>pc_src,
 	clk=>clk,
-	rst=>rst,
 	flags=>flags,
 	opcode=>opcode,
 	operand => operand,
