@@ -229,11 +229,13 @@ port(
 	 ac_src: 		in std_logic;
 	 alu_sel: 		in std_logic;
 	 pc_src: 		in std_logic;
+	 halt: 			in std_logic;
 	 result_flag: 	in std_logic;
 	 clk: 			in std_logic;
 	 rst:				in std_logic;
 	 flags:			out std_logic_vector(2 downto 0);
 	opcode:			out std_logic_vector(2 downto 0);
+	operand:			out std_logic_vector(4 downto 0);
 	im_abus:			out std_logic_vector(4 downto 0); --instruction addr bus
 	im_dbus: 		in std_logic_vector(7 downto 0); --instruction data bus
 	
@@ -320,23 +322,27 @@ signal adder_out		: std_logic_vector(4 downto 0);
 signal mux1_out		: std_logic_vector(4 downto 0);
 signal odin				: std_logic_vector(4 downto 0):="00001";
 signal result_zero	: std_logic;
+signal stopClk 		: std_logic;
+signal systemClk		: std_logic;
 
 begin
 
 result_zero <= not( alu_out(7) or alu_out(6) or alu_out(6) or alu_out(4) or
 alu_out(3) or alu_out(2) or  alu_out(1) or alu_out(0));
 
+systemClk <= (not stopClk) and clk;
+
 pc1 :PC
 port map(
 	d_in=>mux1_out,
 	reset=>reset,
-	clk=>clk,
+	clk=>systemClk,
 	d_out=>pc_out
 );
 
 zFlag: DF
 port map(
-      clk => clk,
+      clk => systemClk,
       rst =>rst,
       pre =>odin(4),
       ce  =>result_flag,
@@ -346,7 +352,7 @@ port map(
 
 nFlag: DF
 port map(
-      clk => clk,
+      clk => systemClk,
       rst =>rst,
       pre =>odin(4),
       ce  =>result_flag,
@@ -354,8 +360,18 @@ port map(
       q => flags(1) --negative
 );
 
+hFlag: DF
+port map(
+      clk => clk,
+      rst =>rst,
+      pre =>odin(4),
+      ce  =>halt,
+      d =>odin(0),
+      q => stopClk --stop clk
+);
+
 ac1 :AC
-port map(mux2_out, ld_ac, reset, clk, ac_out);
+port map(mux2_out, ld_ac, reset, systemClk, ac_out);
 
 alu1 :ALU
 port map(
@@ -374,11 +390,11 @@ port map(adder_out, im_dbus(4 downto 0), pc_src, mux1_out);
 mux2 : MUX2TO1_8B 
 port map(alu_out, dm_in_dbus, ac_src, mux2_out); 	
 
-
  opcode <= im_dbus(7 downto 5);
  im_abus <= pc_out;
  dm_abus <= im_dbus (4 downto 0);
  dm_out_dbus <= ac_out;
+ operand <= im_dbus (4 downto 0);
 
 end Behavioral;
 
@@ -391,6 +407,7 @@ use  IEEE.STD_LOGIC_UNSIGNED.all;
 entity Controller is
 port(
 	opcode: 			in std_logic_vector(2 downto 0);
+	operand:			in std_logic_vector(4 downto 0);
 	flags:			in std_logic_vector(2 downto 0);
 	rd_mem: 			out std_logic;
 	result_flag: 	out std_logic;
@@ -398,6 +415,7 @@ port(
 	ac_src: 			out std_logic;
 	alu_sel: 		out std_logic;
 	ld_ac: 			out std_logic;
+	halt: 			out std_logic;
 	pc_src: 			out std_logic
 	);
 end Controller;
@@ -408,8 +426,39 @@ begin
  process(opcode)
    begin
 	case opcode is
+  when "000" =>   				
+	if (operand="11111") then			--halt
+			rd_mem <= '0';  				--xxx
+			halt <= '1';
+			result_flag <= '0';
+			wr_mem <= '0';		
+			ld_ac <= '0';
+			ac_src <= '0';
+			alu_sel <= '0';
+			pc_src <= '0';
+	elsif (operand="00000") then 		--nop
+			rd_mem <= '0';  				--xxx
+			halt <= '0';
+			result_flag <= '0';
+			wr_mem <= '0';		
+			ld_ac <= '0';
+			ac_src <= '0';
+			alu_sel <= '0';
+			pc_src <= '0';
+	else
+			rd_mem <= '0';  				--xxx
+			halt <= '0';
+			result_flag <= '0';
+			wr_mem <= '0';		
+			ld_ac <= '0';
+			ac_src <= '0';
+			alu_sel <= '0';
+			pc_src <= '0';
+	end if;
+
   when "001" =>   				--lda adr
 			rd_mem <= '1';
+			halt <= '0';
 			result_flag <= '0';
 			wr_mem <= '0';		
 			ld_ac <= '1';
@@ -418,6 +467,7 @@ begin
 			pc_src <= '0';
 	  when "010" =>					--add adr
   			rd_mem <= '1';
+			halt <= '0';
 			result_flag <= '1';
 			wr_mem <= '0';		
 			ld_ac <= '1';
@@ -426,6 +476,7 @@ begin
 			pc_src <= '0';
 	when "011" =>					--dec adr
   			rd_mem <= '1';
+			halt <= '0';
 			result_flag <= '1';
 			wr_mem <= '0';		
 			ld_ac <= '1';
@@ -434,6 +485,7 @@ begin
 			pc_src <= '0';
   when "100" =>					-- sta adr
 			rd_mem <= '0';
+			halt <= '0';
 			result_flag <= '0';
 			wr_mem <= '1';		
 			ld_ac <= '0';  		
@@ -442,6 +494,7 @@ begin
 			pc_src <= '0';
   when "101" =>   					--jmp adr
 			rd_mem <= '0';
+			halt <= '0';
 			result_flag <= '0';
 			wr_mem <= '0';		
 			ld_ac <= '0';
@@ -451,6 +504,7 @@ begin
 	  when "110" =>   					--jz adr
 	  if (flags(0)='1') then			--flag zero
 			rd_mem <= '0';
+			halt <= '0';
 			result_flag <= '0';
 			wr_mem <= '0';		
 			ld_ac <= '0';
@@ -459,6 +513,7 @@ begin
 			pc_src <= '1';
 		else
 			rd_mem <= '0';  				--xxx
+			halt <= '0';
 			result_flag <= '0';
 			wr_mem <= '0';		
 			ld_ac <= '0';
@@ -470,6 +525,7 @@ begin
 			  when "111" =>   			--jn adr
 	  if (flags(1)='1') then			--flag negative
 			rd_mem <= '0';
+			halt <= '0';
 			result_flag <= '0';
 			wr_mem <= '0';		
 			ld_ac <= '0';
@@ -478,6 +534,7 @@ begin
 			pc_src <= '1';
 		else
 			rd_mem <= '0';  				--xxx
+			halt <= '0';
 			result_flag <= '0';
 			wr_mem <= '0';		
 			ld_ac <= '0';
@@ -488,6 +545,7 @@ begin
 
  when others =>					--xxx
 			rd_mem <= '0';
+			halt <= '0';
 			result_flag <= '0';
 			wr_mem <= '0';		
 			ld_ac <= '0';
@@ -533,10 +591,12 @@ component DataPath is
 	 alu_sel:		in std_logic;
 	 pc_src: 		in std_logic;
 	 result_flag: 	in std_logic;
+	 halt: 			in std_logic;
 	 clk: 			in std_logic;
 	 rst:				in std_logic;
 	 flags:			out std_logic_vector(2 downto 0);
 	opcode:			out std_logic_vector(2 downto 0);
+	operand:			out std_logic_vector(4 downto 0);
 	im_abus:			out std_logic_vector(4 downto 0); --instruction addr bus
 	im_dbus: 		in std_logic_vector(7 downto 0); --instruction data bus
 	
@@ -549,6 +609,7 @@ end component;
 component Controller is
 port(
 	opcode: 			in std_logic_vector(2 downto 0);
+	operand:			in std_logic_vector(4 downto 0);
 	rd_mem: 			out std_logic;
 	flags:			in std_logic_vector(2 downto 0);
 	wr_mem: 			out std_logic;
@@ -556,6 +617,7 @@ port(
 	ac_src: 			out std_logic;
 	alu_sel:			out std_logic;
 	ld_ac: 			out std_logic;
+	halt: 			out std_logic;
 	pc_src: 			out std_logic
 	);
 end component;
@@ -565,8 +627,10 @@ signal ac_src			: std_logic;
 signal ld_ac			: std_logic;
 signal pc_src			: std_logic;
 signal alu_sel			: std_logic;
+signal halt				: std_logic;
 signal result_flag	: std_logic;
 signal flags			: std_logic_vector(2 downto 0);
+signal operand			: std_logic_vector(4 downto 0);
 
 begin
 
@@ -577,11 +641,13 @@ port map(
 	ac_src=>ac_src,
 	result_flag=>result_flag,
 	alu_sel => alu_sel,
+	halt=>halt,
 	pc_src=>pc_src,
 	clk=>clk,
 	rst=>rst,
 	flags=>flags,
 	opcode=>opcode,
+	operand => operand,
 	im_abus=>im_abus,
 	im_dbus=>im_dbus,
 	
@@ -595,12 +661,14 @@ port map(
 c1 :Controller
 port map(
 	opcode=>opcode,
+	operand=>operand,
 	rd_mem=>rd_mem,
 	flags=>flags,
 	wr_mem=>wr_mem,
 	result_flag=>result_flag,
 	alu_sel => alu_sel,
 	ac_src=>ac_src,
+	halt=>halt,
 	ld_ac=>ld_ac,
 	pc_src=>pc_src
 );
