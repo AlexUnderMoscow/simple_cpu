@@ -16,13 +16,11 @@ end entity DF;
 architecture Behavioral of DF is
 begin
    process (clk) is
-   begin
-      if rising_edge(clk) then  
+   begin 
          if (rst='1') then   
             q <= '0';
-         elsif (pre='1') then
-            q <= '1';
-         elsif (ce='1') then
+			elsif rising_edge(clk) then 	
+         if (ce='1') then
             q <= d;
          end if;
       end if;
