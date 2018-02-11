@@ -273,6 +273,7 @@ port(
 	 alu_sel: 		in std_logic;
 	 pc_src: 		in std_logic;
 	 halt: 			in std_logic;
+	 ac_mov:			in std_logic;
 	 result_flag: 	in std_logic;
 	 pc_en: 			in std_logic;	
 	 clk: 			in std_logic;
@@ -368,17 +369,20 @@ port(
 end component;
 
 
-signal ac_out			: std_logic_vector(7 downto 0);
-signal alu_out			: std_logic_vector(7 downto 0);
-signal mux2_out		: std_logic_vector(7 downto 0);
-signal pc_out			: std_logic_vector(4 downto 0);
-signal sp_out			: std_logic_vector(4 downto 0);
-signal adder_out		: std_logic_vector(4 downto 0);
-signal mux1_out		: std_logic_vector(4 downto 0);
-signal odin				: std_logic_vector(4 downto 0):="00001";
-signal result_zero	: std_logic;
-signal stopClk 		: std_logic;
-signal systemClk		: std_logic;
+signal ac_out				: std_logic_vector(7 downto 0);
+signal alu_out				: std_logic_vector(7 downto 0);
+signal mux2_out			: std_logic_vector(7 downto 0);
+signal pc_out				: std_logic_vector(4 downto 0);
+signal sp_out				: std_logic_vector(4 downto 0);
+signal adder_out			: std_logic_vector(4 downto 0);
+signal mux1_out			: std_logic_vector(4 downto 0);
+signal odin					: std_logic_vector(4 downto 0):="00001";
+signal zero					: std_logic_vector(7 downto 0):="00000000";
+signal result_zero		: std_logic;
+signal stopClk 			: std_logic;
+signal systemClk			: std_logic;
+signal dataMov				: std_logic_vector(7 downto 0);
+signal muxMovOpcodeOut	: std_logic_vector(7 downto 0);
 
 begin
 
@@ -456,13 +460,18 @@ mux1: MUX2TO1_6B
 port map(adder_out, im_dbus(4 downto 0), pc_src, mux1_out);
  
 mux2 : MUX2TO1_8B 
-port map(alu_out, dm_in_dbus, ac_src, mux2_out); 	
+port map(alu_out, dataMov, ac_src, mux2_out); 	
+--------
+muxMovData : MUX2TO1_8B 
+port map(dm_in_dbus, im_dbus, ac_mov, dataMov); 	
 
- opcode <= im_dbus(7 downto 5);
- --im_abus <= pc_out;
- im_abus<=pc_out;
+muxMovOpcode : MUX2TO1_8B 
+port map(im_dbus, zero, ac_mov, muxMovOpcodeOut); 	
+---------
+ opcode <= muxMovOpcodeOut(7 downto 5);
+ im_abus <= pc_out;
  dm_out_dbus <= ac_out;
- operand <= im_dbus (4 downto 0);
+ operand <= muxMovOpcodeOut (4 downto 0);
 
 end Behavioral;
 
@@ -485,6 +494,7 @@ port(
 	ac_src: 			out std_logic;
 	alu_sel: 		out std_logic;
 	ld_ac: 			out std_logic;
+	ac_mov:			out std_logic;
 	halt: 			out std_logic;
 	pc_en: 			out std_logic;	
 	sp_action: 		out std_logic;
@@ -501,8 +511,15 @@ TYPE State_type IS (Decode, Push, Pop, Mov);  	-- Define the states
 	signal wrieAssist: std_logic;
 	signal writeMem: std_logic;
 	signal operation: std_logic_vector(7 downto 0);
+	signal ld_ac_allow: std_logic;
+	signal ld_ac_assist: std_logic;
+	signal ac_src_assist: std_logic;
 begin
 wr_mem <= wrieAssist and writeMem;
+
+ac_src<=ac_src_assist or ld_ac_allow;
+ld_ac <= ld_ac_assist or ld_ac_allow;
+
 operation(7 downto 5) <= opcode;
 operation(4 downto 0) <= operand;
 PROCESS (clk, reset)
@@ -513,6 +530,8 @@ Begin
 		sp_action<='0';		
 		sp_push<='0';
 		wrieAssist<='1';
+		ld_ac_allow<='0';
+		ac_mov<='0';
 	elsif rising_edge(clk) then 
 		case State is
 		WHEN Decode => 
@@ -521,21 +540,28 @@ Begin
 				wrieAssist<='0';
 				sp_action<='1';		
 				sp_push<='1';
+				ac_mov<='0';
+				ld_ac_allow<='0';
 				State <= Push; 
 			elsif (opcode="000" and operand="00010") THEN --pop
 				pc_en<='0';
 				wrieAssist<='0';
 				sp_action<='1';		
 				sp_push<='0';
+				ac_mov<='0';
+				ld_ac_allow<='0';
 				State <= Pop; 
 			elsif (opcode="000" and operand="00011") THEN --mov
 				pc_en<='1';
 				wrieAssist<='1';
 				sp_action<='0';		
 				sp_push<='0';
+				ac_mov<='1';
+				ld_ac_allow<='1';
 				State <= Mov; 
 			else
 				pc_en<='1';
+				ac_mov<='0';
 				wrieAssist<='1';
 				sp_action<='0';		
 				sp_push<='0';
@@ -546,24 +572,32 @@ Begin
 				wrieAssist<='1';
 				sp_action<='0';		
 				sp_push<='0';
+				ac_mov<='0';
+				ld_ac_allow<='0';
 				State <= Decode; 
 		WHEN Pop =>
 				pc_en<='1';
 				wrieAssist<='1';
 				sp_action<='0';		
 				sp_push<='0';
+				ac_mov<='0';
+				ld_ac_allow<='0';
 				State <= Decode; 
 		WHEN Mov=> 
 				pc_en<='1';
 				wrieAssist<='1';
 				sp_action<='0';		
 				sp_push<='0';
+				ac_mov<='0';
+				ld_ac_allow<='0';
 				State <= Decode; 
 		WHEN others =>
 			pc_en<='1';
 			wrieAssist<='1';
 			sp_action<='0';		
 			sp_push<='0';
+			ac_mov<='0';
+			ld_ac_allow<='0';
 			State <= Decode;		
 		end case;
 	end if;
@@ -578,10 +612,11 @@ end process;
 			halt <= '1';
 			result_flag <= '0';
 			writeMem <= '0';		
-			ld_ac <= '0';
-			ac_src <= '0';
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
+
 	
 	when "00000000" =>
 												--nop
@@ -589,11 +624,12 @@ end process;
 			halt <= '0';
 			result_flag <= '0';
 			writeMem <= '0';		
-			ld_ac <= '0';
-			ac_src <= '0';
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
 			sp_addr<='0';
+
 	
 	when "00000001" =>		
 												--push
@@ -607,10 +643,11 @@ end process;
 				writeMem <= '1';
 				sp_addr<='1';
 			end if;
-			ld_ac <= '0';
-			ac_src <= '0';
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
+
 		
 	when "00000010" =>	
 													--pop
@@ -619,18 +656,45 @@ end process;
 			result_flag <= '0';
 			if (State=Pop) then
 				rd_mem <= '0';
-				ld_ac <= '0';
-
+				ld_ac_assist <= '0';
 				sp_addr<='0';
 			else
 				rd_mem <= '1';
-
 				sp_addr<='1';
-				ld_ac <= '1';
+				ld_ac_assist <= '1';
 			end if;
-			ac_src <= '1';
+			ac_src_assist <= '1';
 			alu_sel <= '0';
 			pc_src <= '0';
+
+			
+	when "00000011" =>	
+													--mov	
+		if (State=Mov) then
+		--second action
+			rd_mem <= '0';  				--xxx
+			halt <= '0';
+			result_flag <= '0';
+			writeMem <= '0';		
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
+			alu_sel <= '0';
+			pc_src <= '0';
+			sp_addr<='0';
+
+		else
+		--first action
+			rd_mem <= '0';  				--xxx
+			halt <= '0';
+			result_flag <= '0';
+			writeMem <= '0';		
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
+			alu_sel <= '0';
+			pc_src <= '0';
+			sp_addr<='0';
+
+		end if;
 
   when 		x"20" | x"21"  | x"22" | x"23" | x"24" | x"25" | x"26" | x"27"
 			| 	x"28" | x"29"  | x"2A" | x"2B" | x"2C" | x"2D" | x"2E" | x"2F"
@@ -641,11 +705,12 @@ end process;
 			halt <= '0';
 			result_flag <= '0';
 			writeMem <= '0';		
-			ld_ac <= '1';
-			ac_src <= '1';
+			ld_ac_assist <= '1';
+			ac_src_assist <= '1';
 			alu_sel <= '0';
 			pc_src <= '0';
 			sp_addr<='0';
+
 	  when 	x"40" | x"41"  | x"42" | x"43" | x"44" | x"45" | x"46" | x"47"
 			| 	x"48" | x"49"  | x"4A" | x"4B" | x"4C" | x"4D" | x"4E" | x"4F"
 			|	x"50" | x"51"  | x"52" | x"53" | x"54" | x"55" | x"56" | x"57"
@@ -655,11 +720,12 @@ end process;
 			halt <= '0';
 			result_flag <= '1';
 			writeMem <= '0';		
-			ld_ac <= '1';
-			ac_src <= '0';
+			ld_ac_assist <= '1';
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
 			sp_addr<='0';
+
 	when 		x"60" | x"61"  | x"62" | x"63" | x"64" | x"65" | x"66" | x"67"
 			| 	x"68" | x"69"  | x"6A" | x"6B" | x"6C" | x"6D" | x"6E" | x"6F"
 			|	x"70" | x"71"  | x"72" | x"73" | x"74" | x"75" | x"76" | x"77"
@@ -669,11 +735,12 @@ end process;
 			halt <= '0';
 			result_flag <= '1';
 			writeMem <= '0';		
-			ld_ac <= '1';
-			ac_src <= '0';
+			ld_ac_assist <= '1';
+			ac_src_assist <= '0';
 			alu_sel <= '1';
 			pc_src <= '0';
 			sp_addr<='0';
+
   when 		x"80" | x"81"  | x"82" | x"83" | x"84" | x"85" | x"86" | x"87"
 			| 	x"88" | x"89"  | x"8A" | x"8B" | x"8C" | x"8D" | x"8E" | x"8F"
 			|	x"90" | x"91"  | x"92" | x"93" | x"94" | x"95" | x"96" | x"97"
@@ -683,11 +750,12 @@ end process;
 			halt <= '0';
 			result_flag <= '0';
 			writeMem <= '1';		
-			ld_ac <= '0';  		
-			ac_src <= '0';
+			ld_ac_assist <= '0';  		
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
 			sp_addr<='0';
+
   when 		x"A0" | x"A1"  | x"A2" | x"A3" | x"A4" | x"A5" | x"A6" | x"A7"
 			| 	x"A8" | x"A9"  | x"AA" | x"AB" | x"AC" | x"AD" | x"AE" | x"AF"
 			|	x"B0" | x"B1"  | x"B2" | x"B3" | x"B4" | x"B5" | x"B6" | x"B7"
@@ -697,8 +765,8 @@ end process;
 			halt <= '0';
 			result_flag <= '0';
 			writeMem <= '0';		
-			ld_ac <= '0';
-			ac_src <= '0';
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '1';
 
@@ -715,8 +783,8 @@ end process;
 			halt <= '0';
 			result_flag <= '0';
 			writeMem <= '0';		
-			ld_ac <= '0';
-			ac_src <= '0';
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '1';
 		else
@@ -724,8 +792,8 @@ end process;
 			halt <= '0';
 			result_flag <= '0';
 			writeMem <= '0';		
-			ld_ac <= '0';
-			ac_src <= '0';
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
 		end if;
@@ -736,14 +804,14 @@ end process;
 			| 	x"F8" | x"F9"  | x"FA" | x"FB" | x"FC" | x"FD" | x"FE" | x"FF"
 		=>   			--jn adr "111"
 
-				sp_addr<='0';
+			sp_addr<='0';
 	  if (flags(1)='1') then			--flag negative
 			rd_mem <= '0';
 			halt <= '0';
 			result_flag <= '0';
 			writeMem <= '0';		
-			ld_ac <= '0';
-			ac_src <= '0';
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '1';
 		else
@@ -751,20 +819,21 @@ end process;
 			halt <= '0';
 			result_flag <= '0';
 			writeMem <= '0';		
-			ld_ac <= '0';
-			ac_src <= '0';
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
 		end if;
 
  when others =>					--xxx
-
+				
+			sp_addr<='0';
 			rd_mem <= '0';
 			halt <= '0';
 			result_flag <= '0';
 			writeMem <= '0';		
-			ld_ac <= '0';
-			ac_src <= '0';
+			ld_ac_assist <= '0';
+			ac_src_assist <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
 end case;
@@ -809,6 +878,7 @@ component DataPath is
 	 sp_push: 		in std_logic;
 	 sp_addr: 		in std_logic;
 	 halt: 			in std_logic;
+	 ac_mov:			in std_logic;
 	 clk: 			in std_logic;
 	 pc_en: 			in std_logic;	
 	 flags:			out std_logic_vector(2 downto 0);
@@ -836,6 +906,7 @@ port(
 	ac_src: 			out std_logic;
 	alu_sel:			out std_logic;
 	ld_ac: 			out std_logic;
+	ac_mov:			out std_logic;
 	pc_en: 			out std_logic;	
 	halt: 			out std_logic;
 	sp_action: 		out std_logic;
@@ -853,6 +924,7 @@ signal alu_sel			: std_logic;
 signal halt				: std_logic;
 signal result_flag	: std_logic;
 signal sp_action		: std_logic;
+signal ac_mov			: std_logic;
 signal sp_push			: std_logic;
 signal sp_addr			: std_logic;
 signal pc_en			: std_logic;	
@@ -873,6 +945,7 @@ port map(
 	clk=>clk,
 	flags=>flags,
 	pc_en=>pc_en,
+	ac_mov=>ac_mov,
 	opcode=>opcode,
 	operand => operand,
 	im_abus=>im_abus,
@@ -897,6 +970,7 @@ port map(
 	result_flag=>result_flag,
 	alu_sel => alu_sel,
 	ac_src=>ac_src,
+	ac_mov=>ac_mov,
 	halt=>halt,
 	ld_ac=>ld_ac,
 	pc_en=>pc_en,
