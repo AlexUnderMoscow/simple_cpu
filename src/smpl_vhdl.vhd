@@ -500,13 +500,15 @@ TYPE State_type IS (Decode, Push, Pop, Mov);  	-- Define the states
 	SIGNAL State : State_Type:=Decode;    			-- Create a signal that uses 
 	signal wrieAssist: std_logic;
 	signal writeMem: std_logic;
+	signal operation: std_logic_vector(7 downto 0);
 begin
 wr_mem <= wrieAssist and writeMem;
+operation(7 downto 5) <= opcode;
+operation(4 downto 0) <= operand;
 PROCESS (clk, reset)
 Begin
 	if (reset='1') then
 		State<=Decode;
-		--sp_addr<='0';
 		pc_en<='1';
 		sp_action<='0';		
 		sp_push<='0';
@@ -515,28 +517,24 @@ Begin
 		case State is
 		WHEN Decode => 
 			IF (opcode="000" and operand="00001") THEN --push
-				--sp_addr<='1';
 				pc_en<='0';
 				wrieAssist<='0';
 				sp_action<='1';		
 				sp_push<='1';
 				State <= Push; 
 			elsif (opcode="000" and operand="00010") THEN --pop
-				--sp_addr<='1';
 				pc_en<='0';
 				wrieAssist<='0';
 				sp_action<='1';		
 				sp_push<='0';
 				State <= Pop; 
 			elsif (opcode="000" and operand="00011") THEN --mov
-				--sp_addr<='0';
 				pc_en<='1';
 				wrieAssist<='1';
 				sp_action<='0';		
 				sp_push<='0';
 				State <= Mov; 
 			else
-				--sp_addr<='0';
 				pc_en<='1';
 				wrieAssist<='1';
 				sp_action<='0';		
@@ -544,28 +542,24 @@ Begin
 				State <= Decode;
 			END IF;  			
 		WHEN Push =>
-				--sp_addr<='0';
 				pc_en<='1';
 				wrieAssist<='1';
 				sp_action<='0';		
 				sp_push<='0';
 				State <= Decode; 
 		WHEN Pop =>
-				--sp_addr<='0';
 				pc_en<='1';
 				wrieAssist<='1';
 				sp_action<='0';		
 				sp_push<='0';
 				State <= Decode; 
 		WHEN Mov=> 
-				--sp_addr<='0';
 				pc_en<='1';
 				wrieAssist<='1';
 				sp_action<='0';		
 				sp_push<='0';
 				State <= Decode; 
 		WHEN others =>
-			--sp_addr<='0';
 			pc_en<='1';
 			wrieAssist<='1';
 			sp_action<='0';		
@@ -575,11 +569,11 @@ Begin
 	end if;
 end process;
 
- process(opcode)
+ process(operation)
    begin
-		case opcode is
-  when "000" =>   				
-	if (operand="11111") then			--halt
+		case operation is
+  when "00011111" =>   				
+												--halt
 			rd_mem <= '0';  				--xxx
 			halt <= '1';
 			result_flag <= '0';
@@ -588,11 +582,9 @@ end process;
 			ac_src <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
-			--pc_en<='0';
-			--sp_action<='0';		
-			--sp_push<='0';
-			--sp_addr<='0';
-	elsif (operand="00000") then 		--nop
+	
+	when "00000000" =>
+												--nop
 			rd_mem <= '0';  				--xxx
 			halt <= '0';
 			result_flag <= '0';
@@ -601,69 +593,50 @@ end process;
 			ac_src <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
-			--pc_en<='1';
-			--sp_action<='0';		
-			--sp_push<='0';
 			sp_addr<='0';
-	elsif (operand="00001") then 		--push
+	
+	when "00000001" =>		
+												--push
 			rd_mem <= '0';  				--
 			halt <= '0';
 			result_flag <= '0';
 			if (State=Push) then
 				writeMem <= '0';
-				--pc_en<='1';
-				--sp_action<='1';		
-				--sp_push<='1';
 				sp_addr<='0';
 			else
 				writeMem <= '1';
-				--pc_en<='0';
-				--sp_action<='0';		
-				--sp_push<='0';
 				sp_addr<='1';
 			end if;
 			ld_ac <= '0';
 			ac_src <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
-		elsif (operand="00010") then 		--pop
+		
+	when "00000010" =>	
+													--pop
 			writeMem <= '0';  				--
 			halt <= '0';
 			result_flag <= '0';
 			if (State=Pop) then
 				rd_mem <= '0';
 				ld_ac <= '0';
-				--pc_en<='1';
-				--sp_action<='0';		
-				--sp_push<='0';
+
 				sp_addr<='0';
 			else
 				rd_mem <= '1';
-				--pc_en<='0';
-				--sp_action<='0';		
-				--sp_push<='0';
+
 				sp_addr<='1';
 				ld_ac <= '1';
 			end if;
 			ac_src <= '1';
 			alu_sel <= '0';
 			pc_src <= '0';
-	else
-			rd_mem <= '0';  				--xxx
-			halt <= '0';
-			result_flag <= '0';
-			writeMem <= '0';		
-			ld_ac <= '0';
-			ac_src <= '0';
-			alu_sel <= '0';
-			pc_src <= '0';
-			--pc_en<='1';
-			--sp_action<='0';		
-			--sp_push<='0';
-			--sp_addr<='0';
-	end if;
 
-  when "001" =>   				--lda adr
+  when 		x"20" | x"21"  | x"22" | x"23" | x"24" | x"25" | x"26" | x"27"
+			| 	x"28" | x"29"  | x"2A" | x"2B" | x"2C" | x"2D" | x"2E" | x"2F"
+			|	x"30" | x"31"  | x"32" | x"33" | x"34" | x"35" | x"36" | x"37"
+			| 	x"38" | x"39"  | x"3A" | x"3B" | x"3C" | x"3D" | x"3E" | x"3F"
+			=>   																--lda adr "001"
 			rd_mem <= '1';
 			halt <= '0';
 			result_flag <= '0';
@@ -672,11 +645,12 @@ end process;
 			ac_src <= '1';
 			alu_sel <= '0';
 			pc_src <= '0';
-			--pc_en<='1';
-			--sp_action<='0';		
-			--sp_push<='0';
 			sp_addr<='0';
-	  when "010" =>					--add adr
+	  when 	x"40" | x"41"  | x"42" | x"43" | x"44" | x"45" | x"46" | x"47"
+			| 	x"48" | x"49"  | x"4A" | x"4B" | x"4C" | x"4D" | x"4E" | x"4F"
+			|	x"50" | x"51"  | x"52" | x"53" | x"54" | x"55" | x"56" | x"57"
+			| 	x"58" | x"59"  | x"5A" | x"5B" | x"5C" | x"5D" | x"5E" | x"5F"
+			=>																	--add adr "010"
   			rd_mem <= '1';
 			halt <= '0';
 			result_flag <= '1';
@@ -685,11 +659,12 @@ end process;
 			ac_src <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
-			--pc_en<='1';
-			--sp_action<='0';		
-			--sp_push<='0';
 			sp_addr<='0';
-	when "011" =>					--dec adr
+	when 		x"60" | x"61"  | x"62" | x"63" | x"64" | x"65" | x"66" | x"67"
+			| 	x"68" | x"69"  | x"6A" | x"6B" | x"6C" | x"6D" | x"6E" | x"6F"
+			|	x"70" | x"71"  | x"72" | x"73" | x"74" | x"75" | x"76" | x"77"
+			| 	x"78" | x"79"  | x"7A" | x"7B" | x"7C" | x"7D" | x"7E" | x"7F" 
+			=>																	--dec adr "011"
   			rd_mem <= '1';
 			halt <= '0';
 			result_flag <= '1';
@@ -698,11 +673,12 @@ end process;
 			ac_src <= '0';
 			alu_sel <= '1';
 			pc_src <= '0';
-			--pc_en<='1';
-			--sp_action<='0';		
-			--sp_push<='0';
 			sp_addr<='0';
-  when "100" =>					-- sta adr
+  when 		x"80" | x"81"  | x"82" | x"83" | x"84" | x"85" | x"86" | x"87"
+			| 	x"88" | x"89"  | x"8A" | x"8B" | x"8C" | x"8D" | x"8E" | x"8F"
+			|	x"90" | x"91"  | x"92" | x"93" | x"94" | x"95" | x"96" | x"97"
+			| 	x"98" | x"99"  | x"9A" | x"9B" | x"9C" | x"9D" | x"9E" | x"9F"
+			=>																-- sta adr "100"
 			rd_mem <= '0';
 			halt <= '0';
 			result_flag <= '0';
@@ -711,11 +687,12 @@ end process;
 			ac_src <= '0';
 			alu_sel <= '0';
 			pc_src <= '0';
-			--pc_en<='1';
-			--sp_action<='0';		
-			--sp_push<='0';
 			sp_addr<='0';
-  when "101" =>   					--jmp adr
+  when 		x"A0" | x"A1"  | x"A2" | x"A3" | x"A4" | x"A5" | x"A6" | x"A7"
+			| 	x"A8" | x"A9"  | x"AA" | x"AB" | x"AC" | x"AD" | x"AE" | x"AF"
+			|	x"B0" | x"B1"  | x"B2" | x"B3" | x"B4" | x"B5" | x"B6" | x"B7"
+			| 	x"B8" | x"B9"  | x"BA" | x"BB" | x"BC" | x"BD" | x"BE" | x"BF"
+			=>   																--jmp adr "101"
 			rd_mem <= '0';
 			halt <= '0';
 			result_flag <= '0';
@@ -724,14 +701,14 @@ end process;
 			ac_src <= '0';
 			alu_sel <= '0';
 			pc_src <= '1';
-			--pc_en<='1';
-			--sp_action<='0';		
-			--sp_push<='0';
+
 			sp_addr<='0';
-	  when "110" =>   					--jz adr
-			--pc_en<='1';
-			--sp_action<='0';		
-			--sp_push<='0';
+	  when 	x"C0" | x"C1"  | x"C2" | x"C3" | x"C4" | x"C5" | x"C6" | x"C7"
+			| 	x"C8" | x"C9"  | x"CA" | x"CB" | x"CC" | x"CD" | x"CE" | x"CF"
+			|	x"D0" | x"D1"  | x"D2" | x"D3" | x"D4" | x"D5" | x"D6" | x"D7"
+			| 	x"D8" | x"D9"  | x"DA" | x"DB" | x"DC" | x"DD" | x"DE" | x"DF"
+			=>   																--jz adr "110"
+
 			sp_addr<='0';
 	  if (flags(0)='1') then			--flag zero
 			rd_mem <= '0';
@@ -753,10 +730,12 @@ end process;
 			pc_src <= '0';
 		end if;
 		
-		when "111" =>   			--jn adr
-				--pc_en<='1';
-				--sp_action<='0';		
-				--sp_push<='0';
+		when 	x"E0" | x"E1"  | x"E2" | x"E3" | x"E4" | x"E5" | x"E6" | x"E7"
+			| 	x"E8" | x"E9"  | x"EA" | x"EB" | x"EC" | x"ED" | x"EE" | x"EF"
+			|	x"F0" | x"F1"  | x"F2" | x"F3" | x"F4" | x"F5" | x"F6" | x"F7"
+			| 	x"F8" | x"F9"  | x"FA" | x"FB" | x"FC" | x"FD" | x"FE" | x"FF"
+		=>   			--jn adr "111"
+
 				sp_addr<='0';
 	  if (flags(1)='1') then			--flag negative
 			rd_mem <= '0';
@@ -779,10 +758,7 @@ end process;
 		end if;
 
  when others =>					--xxx
-			--pc_en<='1';
-			--sp_action<='0';		
-			--sp_push<='0';
-			--sp_addr<='0';
+
 			rd_mem <= '0';
 			halt <= '0';
 			result_flag <= '0';
